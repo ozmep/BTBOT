@@ -1,0 +1,9 @@
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\TelegramExcelBot.exe
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\TelegramExcelBot.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\TelegramExcelBot.deps.json
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\TelegramExcelBot.runtimeconfig.json
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\TelegramExcelBot.pdb
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\ExcelDataReader.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\ExcelDataReader.DataSet.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\System.Text.Json.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\publish\Telegram.Bot.dll

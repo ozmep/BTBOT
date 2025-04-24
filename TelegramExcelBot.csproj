@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net6.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- ExcelDataReader for reading Excel files -->
+		<PackageReference Include="ExcelDataReader" Version="3.7.0" />
+		<PackageReference Include="ExcelDataReader.DataSet" Version="3.7.0" />
+
+		<!-- Telegram.Bot for the bot functionality -->
+		<PackageReference Include="Telegram.Bot" Version="22.4.3" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Ensuring the Excel file is included in the output folder -->
+		<Content Update="Data\ALPON.xlsx">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+
+</Project>

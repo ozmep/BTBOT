@@ -1,0 +1,17 @@
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\TelegramExcelBot.exe
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\TelegramExcelBot.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\TelegramExcelBot.deps.json
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\TelegramExcelBot.runtimeconfig.json
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\TelegramExcelBot.pdb
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\ExcelDataReader.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\ExcelDataReader.DataSet.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\Microsoft.Extensions.Configuration.Abstractions.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\Microsoft.Extensions.Configuration.Binder.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\Microsoft.Extensions.DependencyInjection.Abstractions.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\Microsoft.Extensions.Options.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\Microsoft.Extensions.Options.ConfigurationExtensions.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\Microsoft.Extensions.Primitives.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\System.Text.Encodings.Web.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\System.Text.Json.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\Telegram.Bot.dll
+C:\Users\ozsha\source\repos\TelegramExcelBot\TelegramExcelBot\out\runtimes\browser\lib\net6.0\System.Text.Encodings.Web.dll
