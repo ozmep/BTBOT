@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,7 +15,6 @@ using ExcelDataReader;
 
 namespace TelegramExcelBot
 {
-    // Model for a student record.
     public class Student
     {
         public string Id { get; set; }
@@ -37,365 +37,355 @@ namespace TelegramExcelBot
         public string Parent1Email { get; set; }
         public string Parent2Id { get; set; }
         public string Parent2Name { get; set; }
+        public string Parent2Phone { get; set; }
         public string Parent2Email { get; set; }
         public string Major { get; set; }
-        public string Parent2Phone { get; set; }
     }
 
-    // Conversation state for /search.
-    public class SearchConversationState
+    public class Teacher
     {
-        public int Step { get; set; }          // 1: waiting for first input; 2: waiting for second input.
-        public string Option { get; set; }       // "id" or "fullname"
+        public string Id { get; set; }
+        public string FullNameRaw { get; set; }
         public string FirstName { get; set; }
         public string LastName { get; set; }
-        public int MenuMessageId { get; set; }   // The message id of the inline keyboard menu.
+        public string Phone1 { get; set; }
+        public string Phone2 { get; set; }
+        public string City { get; set; }
+        public string FullAddress { get; set; }
+        public string Email { get; set; }
+        public List<string> Subjects { get; set; } = new List<string>();
+        public string Role { get; set; }
+    }
+
+    public class SearchConversationState
+    {
+        public int Step { get; set; }
+        public string Option { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public int MenuMessageId { get; set; }
     }
 
     class Program
     {
         static TelegramBotClient botClient;
-        // Conversation state per chat.
         static Dictionary<long, SearchConversationState> searchStates = new Dictionary<long, SearchConversationState>();
-        // Cached student records.
         static List<Student> cachedStudents = new List<Student>();
-
-        // Security: list of authorized user chat IDs.
+        static List<Teacher> cachedTeachers = new List<Teacher>();
         static HashSet<long> authorizedUsers = new HashSet<long>();
-        // Set secret key to "YafaBish"
-        static readonly string securityKey = "YafaBish";
+        const string securityKey = "YafaBish";
 
         static async Task Main(string[] args)
         {
-            // Updated token:
-            string botToken = "7954381826:AAFo756E7wGIS_k4ur0pSs3TeJTV4QRMjjI";
-            botClient = new TelegramBotClient(botToken);
+            using var mutex = new Mutex(true, "TelegramExcelBotSingleton", out bool createdNew);
+            if (!createdNew) return;
 
-            // Delete any existing webhook to avoid conflicts.
-            await botClient.DeleteWebhookAsync();
+            botClient = new TelegramBotClient("7954381826:AAEO7IDqHXd28qeklKXXSXIC-nKzc8G55nU");
+            await botClient.DeleteWebhookAsync(true);
 
-            // Load the Excel data into memory.
+            Console.WriteLine("Loading Data...");
             await LoadStudentDataAsync();
+            Console.WriteLine("Student Data Loaded, Awaiting Teacher Data...");
+            await LoadTeacherDataAsync();
+            Console.WriteLine("Teacher Data Loaded");
 
-            // Set up polling options (polling via getUpdates).
             var receiverOptions = new ReceiverOptions { AllowedUpdates = Array.Empty<UpdateType>() };
             using var cts = new CancellationTokenSource();
-
-            // Start receiving updates using long polling.
             botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions, cts.Token);
 
-            Console.WriteLine("Bot is running with polling.");
+            Console.WriteLine("Bot is running");
             await Task.Delay(Timeout.Infinite);
         }
 
-
-        // Load Excel data into the cachedStudents list.
         static async Task LoadStudentDataAsync()
         {
-            string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "ALPON.xlsx");
-            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-
-            try
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string projectDir = Path.GetFullPath(Path.Combine(exeDir, "../../.."));
+            string path = Path.Combine(projectDir, "Data", "ALPON.xlsx");
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            cachedStudents.Clear();
+            using var stream = File.Open(path, FileMode.Open, FileAccess.Read);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+            int row = 0;
+            while (reader.Read())
             {
-                // Clear any existing data.
-                cachedStudents.Clear();
-
-                using (var stream = File.Open(filePath, FileMode.Open, FileAccess.Read))
-                using (var reader = ExcelReaderFactory.CreateReader(stream))
+                row++;
+                if (row <= 3) continue;
+                cachedStudents.Add(new Student
                 {
-                    int rowIndex = 0;
-                    while (reader.Read())
-                    {
-                        rowIndex++;
-                        if (rowIndex <= 3) // Skip the first three rows.
-                            continue;
-
-                        var student = new Student
-                        {
-                            Id = reader.GetValue(1)?.ToString() ?? "",
-                            LastName = reader.GetValue(2)?.ToString() ?? "",
-                            FirstName = reader.GetValue(3)?.ToString() ?? "",
-                            Grade = reader.GetValue(4)?.ToString() ?? "",
-                            ClassNum = reader.GetValue(5)?.ToString() ?? "",
-                            Gender = reader.GetValue(6)?.ToString() ?? "",
-                            Dob = reader.GetValue(7)?.ToString() ?? "",
-                            JewishDob = reader.GetValue(8)?.ToString() ?? "",
-                            FullAddress = reader.GetValue(11)?.ToString() ?? "",
-                            City = reader.GetValue(12)?.ToString() ?? "",
-                            SecondAddress = reader.GetValue(13)?.ToString() ?? "",
-                            SecondCity = reader.GetValue(14)?.ToString() ?? "",
-                            Email = reader.GetValue(18)?.ToString() ?? "",
-                            Phone = reader.GetValue(19)?.ToString() ?? "",
-                            Parent1Id = reader.GetValue(20)?.ToString() ?? "",
-                            Parent1Name = reader.GetValue(21)?.ToString() ?? "",
-                            Parent1Phone = reader.GetValue(22)?.ToString() ?? "",
-                            Parent1Email = reader.GetValue(23)?.ToString() ?? "",
-                            Parent2Id = reader.GetValue(24)?.ToString() ?? "",
-                            Parent2Name = reader.GetValue(25)?.ToString() ?? "",
-                            Parent2Phone = reader.GetValue(26)?.ToString() ?? "",
-                            Parent2Email = reader.GetValue(27)?.ToString() ?? "",
-                            Major = reader.GetValue(28)?.ToString() ?? ""
-                        };
-
-                        cachedStudents.Add(student);
-                    }
-                }
-
-                Console.WriteLine($"Loaded {cachedStudents.Count} student records.");
+                    Id = reader.GetValue(1)?.ToString() ?? string.Empty,
+                    LastName = reader.GetValue(2)?.ToString() ?? string.Empty,
+                    FirstName = reader.GetValue(3)?.ToString() ?? string.Empty,
+                    Grade = reader.GetValue(4)?.ToString() ?? string.Empty,
+                    ClassNum = reader.GetValue(5)?.ToString() ?? string.Empty,
+                    Gender = reader.GetValue(6)?.ToString() ?? string.Empty,
+                    Dob = reader.GetValue(7)?.ToString() ?? string.Empty,
+                    JewishDob = reader.GetValue(8)?.ToString() ?? string.Empty,
+                    FullAddress = reader.GetValue(11)?.ToString() ?? string.Empty,
+                    City = reader.GetValue(12)?.ToString() ?? string.Empty,
+                    SecondAddress = reader.GetValue(13)?.ToString() ?? string.Empty,
+                    SecondCity = reader.GetValue(14)?.ToString() ?? string.Empty,
+                    Email = reader.GetValue(18)?.ToString() ?? string.Empty,
+                    Phone = reader.GetValue(19)?.ToString() ?? string.Empty,
+                    Parent1Id = reader.GetValue(20)?.ToString() ?? string.Empty,
+                    Parent1Name = reader.GetValue(21)?.ToString() ?? string.Empty,
+                    Parent1Phone = reader.GetValue(22)?.ToString() ?? string.Empty,
+                    Parent1Email = reader.GetValue(23)?.ToString() ?? string.Empty,
+                    Parent2Id = reader.GetValue(24)?.ToString() ?? string.Empty,
+                    Parent2Name = reader.GetValue(25)?.ToString() ?? string.Empty,
+                    Parent2Phone = reader.GetValue(26)?.ToString() ?? string.Empty,
+                    Parent2Email = reader.GetValue(27)?.ToString() ?? string.Empty,
+                    Major = reader.GetValue(28)?.ToString() ?? string.Empty
+                });
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error loading student data: " + ex.Message);
-            }
-
-            await Task.CompletedTask;
         }
 
-        // Main update handler.
-        static async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken cancellationToken)
+        static async Task LoadTeacherDataAsync()
         {
-            // Process callback queries (for inline keyboard).
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string projectDir = Path.GetFullPath(Path.Combine(exeDir, "../../.."));
+            string path = Path.Combine(projectDir, "Data", "TEACHER.xlsx");
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            cachedTeachers.Clear();
+            using var stream = File.Open(path, FileMode.Open, FileAccess.Read);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+            int row = 0;
+            while (reader.Read())
+            {
+                row++;
+                if (row <= 1) continue;
+                var fullName = reader.GetValue(2)?.ToString() ?? string.Empty;
+                var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var firstName = parts.LastOrDefault() ?? string.Empty;
+                var lastName = string.Join(" ", parts.Take(parts.Length - 1));
+                var rawSub = reader.GetValue(8)?.ToString() ?? string.Empty;
+                var subs = rawSub.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                                 .Select(s => s.Trim())
+                                 .Where(s => s.Length > 0)
+                                 .ToList();
+                cachedTeachers.Add(new Teacher
+                {
+                    Id = reader.GetValue(1)?.ToString() ?? string.Empty,
+                    FullNameRaw = fullName,
+                    FirstName = firstName,
+                    LastName = lastName,
+                    Phone1 = reader.GetValue(3)?.ToString() ?? string.Empty,
+                    Phone2 = reader.GetValue(4)?.ToString() ?? string.Empty,
+                    City = reader.GetValue(5)?.ToString() ?? string.Empty,
+                    FullAddress = reader.GetValue(6)?.ToString() ?? string.Empty,
+                    Email = reader.GetValue(7)?.ToString() ?? string.Empty,
+                    Subjects = subs,
+                    Role = reader.GetValue(9)?.ToString() ?? string.Empty
+                });
+            }
+        }
+
+        static async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
+        {
             if (update.Type == UpdateType.CallbackQuery)
             {
-                await HandleCallbackQueryAsync(update.CallbackQuery, cancellationToken);
+                await HandleCallbackQueryAsync(update.CallbackQuery, ct);
                 return;
             }
-
-            if (update.Type != UpdateType.Message)
-                return;
-
-            var message = update.Message;
-            if (message.Text == null)
-                return;
-
-            Console.WriteLine($"Received message from {message.From.FirstName}: {message.Text}");
-
-            // Security barrier: Only process messages from authorized users.
-            if (!authorizedUsers.Contains(message.Chat.Id))
+            if (update.Type != UpdateType.Message || update.Message.Text == null) return;
+            var msg = update.Message;
+            if (!authorizedUsers.Contains(msg.Chat.Id))
             {
-                // Check if the user is trying to send the key.
-                if (message.Text.StartsWith("/key", StringComparison.OrdinalIgnoreCase))
+                if (msg.Text.StartsWith("/key", StringComparison.OrdinalIgnoreCase))
                 {
-                    string providedKey = message.Text.Substring(4).Trim();
-                    if (providedKey == securityKey)
+                    var key = msg.Text.Substring(4).Trim();
+                    if (key == securityKey)
                     {
-                        authorizedUsers.Add(message.Chat.Id);
-                        await botClient.SendTextMessageAsync(message.Chat.Id, "האימות הצליח. כעת ניתן להשתמש בבוט.", cancellationToken: cancellationToken);
+                        authorizedUsers.Add(msg.Chat.Id);
+                        await botClient.SendTextMessageAsync(msg.Chat.Id, "האימות הצליח!", cancellationToken: ct);
                     }
                 }
-                // If not sending a key, simply ignore.
                 return;
             }
-
-            // Process conversation if in progress, otherwise process commands.
-            if (searchStates.ContainsKey(message.Chat.Id))
+            if (msg.Text.StartsWith("/search", StringComparison.OrdinalIgnoreCase))
             {
-                await ProcessSearchConversation(message, cancellationToken);
-            }
-            else
-            {
-                await ProcessCommand(message, cancellationToken);
-            }
-        }
-
-        // Handle inline keyboard callback queries.
-        static async Task HandleCallbackQueryAsync(CallbackQuery callbackQuery, CancellationToken cancellationToken)
-        {
-            var chatId = callbackQuery.Message.Chat.Id;
-            if (callbackQuery.Data == "search_id" || callbackQuery.Data == "search_fullname")
-            {
-                var state = new SearchConversationState();
-                state.Option = (callbackQuery.Data == "search_id") ? "id" : "fullname";
-                state.Step = 1;
-                state.MenuMessageId = callbackQuery.Message.MessageId;
-                searchStates[chatId] = state;
-
-                // Delete the inline keyboard message.
-                await botClient.DeleteMessageAsync(chatId, state.MenuMessageId, cancellationToken);
-
-                // Prompt for input.
-                if (state.Option == "id")
+                var kb = new InlineKeyboardMarkup(new[]
                 {
-                    await botClient.SendTextMessageAsync(chatId, "אנא הזן תעודת זהות:", cancellationToken: cancellationToken);
-                }
-                else
-                {
-                    await botClient.SendTextMessageAsync(chatId, "אנא הזן שם פרטי (או 'ללא' לדילוג):", cancellationToken: cancellationToken);
-                }
-
-                await botClient.AnswerCallbackQueryAsync(callbackQuery.Id, cancellationToken: cancellationToken);
-            }
-        }
-
-        // Process non-search commands.
-        static async Task ProcessCommand(Message message, CancellationToken cancellationToken)
-        {
-            string text = message.Text.Trim();
-
-            if (text.StartsWith("/search", StringComparison.OrdinalIgnoreCase))
-            {
-                // Show inline keyboard menu.
-                var inlineKeyboard = new InlineKeyboardMarkup(new[]
-                {
-                    new []
-                    {
-                        InlineKeyboardButton.WithCallbackData("חיפוש לפי תעודת זהות", "search_id"),
-                        InlineKeyboardButton.WithCallbackData("חיפוש לפי שם מלא", "search_fullname")
-                    }
+                    new[] { InlineKeyboardButton.WithCallbackData("תלמיד", "role_student"), InlineKeyboardButton.WithCallbackData("מורה", "role_teacher") }
                 });
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: "בחר את אופציית החיפוש:",
-                    replyMarkup: inlineKeyboard,
-                    cancellationToken: cancellationToken
-                );
+                await botClient.SendTextMessageAsync(msg.Chat.Id, "בחר סוג חיפוש:", replyMarkup: kb, cancellationToken: ct);
+                return;
             }
-            else if (text.StartsWith("/help", StringComparison.OrdinalIgnoreCase))
+            if (msg.Text.StartsWith("/start", StringComparison.OrdinalIgnoreCase))
             {
-                string helpText = "פקודות זמינות:\n/help - עזרה\n/search - חיפוש תלמיד לפי תעודת זהות או שם מלא.";
-                await botClient.SendTextMessageAsync(message.Chat.Id, helpText, cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(msg.Chat.Id, "/search", cancellationToken: ct);
+                return;
             }
-            else if (text.StartsWith("/start", StringComparison.OrdinalIgnoreCase))
+            if (msg.Text.StartsWith("/help", StringComparison.OrdinalIgnoreCase))
             {
-                await botClient.SendTextMessageAsync(message.Chat.Id, "ברוכים הבאים לבוט חיפוש התלמידים!", cancellationToken: cancellationToken);
+                await botClient.SendTextMessageAsync(msg.Chat.Id, "/search - חיפוש\n/help - עזרה", cancellationToken: ct);
+                return;
             }
-            else
+            if (searchStates.ContainsKey(msg.Chat.Id))
+                await ProcessSearchConversation(msg, ct);
+        }
+
+        static async Task HandleCallbackQueryAsync(CallbackQuery cq, CancellationToken ct)
+        {
+            var chatId = cq.Message.Chat.Id;
+            await botClient.AnswerCallbackQueryAsync(cq.Id, cancellationToken: ct);
+            switch (cq.Data)
             {
-                await botClient.SendTextMessageAsync(message.Chat.Id, "פקודה לא מוכרת. הקלד /help לעזרה.", cancellationToken: cancellationToken);
+                case "role_student":
+                    var skb = new InlineKeyboardMarkup(new[] { new[] { InlineKeyboardButton.WithCallbackData("תעודת זהות", "student_search_id"), InlineKeyboardButton.WithCallbackData("שם מלא", "student_search_fullname") } });
+                    await botClient.EditMessageTextAsync(chatId, cq.Message.MessageId, "בחר חיפוש תלמיד:", replyMarkup: skb, cancellationToken: ct);
+                    break;
+                case "role_teacher":
+                    var tkb = new InlineKeyboardMarkup(new[] { new[] { InlineKeyboardButton.WithCallbackData("תעודת זהות", "teacher_search_id"), InlineKeyboardButton.WithCallbackData("שם מלא", "teacher_search_fullname"), InlineKeyboardButton.WithCallbackData("מקצוע","teacher_search_subject") } });
+                    await botClient.EditMessageTextAsync(chatId, cq.Message.MessageId, "בחר חיפוש מורה:", replyMarkup: tkb, cancellationToken: ct);
+                    break;
+                case "student_search_id": case "student_search_fullname": case "teacher_search_id": case "teacher_search_fullname": case "teacher_search_subject":
+                    searchStates[chatId] = new SearchConversationState { Option = cq.Data, Step = 1, MenuMessageId = cq.Message.MessageId };
+                    await botClient.DeleteMessageAsync(chatId, cq.Message.MessageId, cancellationToken: ct);
+                    string prompt = cq.Data.EndsWith("_id") ? "אנא הזן תעודת זהות:" : cq.Data.EndsWith("_fullname") ? "אנא הזן שם פרטי (או 'ללא'):" : "אנא הזן מקצוע (או 'ללא'):";
+                    await botClient.SendTextMessageAsync(chatId, prompt, cancellationToken: ct);
+                    break;
             }
         }
 
-        // Process conversation when in a search session.
-        static async Task ProcessSearchConversation(Message message, CancellationToken cancellationToken)
+        // Conversation handler
+        static async Task ProcessSearchConversation(Message message, CancellationToken ct)
         {
             var chatId = message.Chat.Id;
             var state = searchStates[chatId];
-            string text = message.Text.Trim();
+            var text = message.Text.Trim();
+            bool isTeacher = state.Option.StartsWith("teacher");
 
-            if (state.Option == "id")
+            // First name / last name flow
+            if (state.Option.EndsWith("_fullname") && state.Step == 1)
             {
-                // Use the entered text as ID.
-                await PerformSearch(message, "", "", text, cancellationToken);
-                searchStates.Remove(chatId);
-            }
-            else if (state.Option == "fullname")
-            {
-                if (state.Step == 1)
-                {
-                    // First input: first name.
-                    state.FirstName = text.Equals("ללא", StringComparison.OrdinalIgnoreCase) ? "" : text;
-                    state.Step = 2;
-                    await botClient.SendTextMessageAsync(chatId, "אנא הזן שם משפחה (או 'ללא' לדילוג):", cancellationToken: cancellationToken);
-                }
-                else if (state.Step == 2)
-                {
-                    state.LastName = text.Equals("ללא", StringComparison.OrdinalIgnoreCase) ? "" : text;
-                    await PerformSearch(message, state.FirstName, state.LastName, "", cancellationToken);
-                    searchStates.Remove(chatId);
-                }
-            }
-        }
-
-        // Perform the search using cached student data, update the "searching" message, and send the final results.
-        static async Task PerformSearch(Message message, string firstName, string lastName, string searchId, CancellationToken cancellationToken)
-        {
-            // Prevent empty searches (all fields empty).
-            if (string.IsNullOrEmpty(firstName) && string.IsNullOrEmpty(lastName) && string.IsNullOrEmpty(searchId))
-            {
-                await botClient.SendTextMessageAsync(message.Chat.Id, "לא ניתן לבצע חיפוש ללא קלט. אנא הזן תעודת זהות או שם חלקי.", cancellationToken: cancellationToken);
+                state.FirstName = text.Equals("ללא", StringComparison.OrdinalIgnoreCase) ? string.Empty : text;
+                state.Step = 2;
+                await botClient.SendTextMessageAsync(chatId, "אנא הזן שם משפחה (או 'ללא'):", cancellationToken: ct);
                 return;
             }
 
-            // Send initial "searching" message.
-            var searchingMsg = await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: "מחפש, נמצאו 0 תוצאות...",
-                cancellationToken: cancellationToken
-            );
+            // Gather inputs
+            string input = text.Equals("ללא", StringComparison.OrdinalIgnoreCase) ? string.Empty : text;
+            string fn = state.Option.EndsWith("_fullname") ? state.FirstName : string.Empty;
+            string ln = (state.Option.EndsWith("_fullname") && state.Step == 2) ? input : string.Empty;
+            string idInput = state.Option.EndsWith("_id") ? input : string.Empty;
+            string subjectInput = state.Option == "teacher_search_subject" ? input : string.Empty;
 
-            StringBuilder resultBuilder = new StringBuilder();
-            int countMatches = 0;
-
-            // Search through the cached list.
-            foreach (var student in cachedStudents)
+            // Prevent empty wildcard on fullname searches
+            if (!isTeacher && state.Option.EndsWith("_fullname") && string.IsNullOrEmpty(fn) && string.IsNullOrEmpty(ln))
             {
-                bool match = false;
-                if (!string.IsNullOrEmpty(searchId))
-                {
-                    match = student.Id.Contains(searchId);
-                }
-                else
-                {
-                    bool matchFirst = string.IsNullOrEmpty(firstName) || student.FirstName.ToLower().Contains(firstName.ToLower());
-                    bool matchLast = string.IsNullOrEmpty(lastName) || student.LastName.ToLower().Contains(lastName.ToLower());
-                    match = matchFirst && matchLast;
-                }
-
-                if (match)
-                {
-                    countMatches++;
-                    resultBuilder.AppendLine($"תעודת זהות: {student.Id}");
-                    resultBuilder.AppendLine($"שם משפחה: {student.LastName}");
-                    resultBuilder.AppendLine($"שם פרטי: {student.FirstName}");
-                    resultBuilder.AppendLine($"כיתה: {student.Grade} {student.ClassNum}");
-                    resultBuilder.AppendLine($"מין: {student.Gender}");
-                    resultBuilder.AppendLine($"תאריך לידה: {student.Dob}");
-                    resultBuilder.AppendLine($"תאריך לידה עברי: {student.JewishDob}");
-                    resultBuilder.AppendLine($"כתובת מלאה: {student.FullAddress}, {student.City}");
-                    resultBuilder.AppendLine($"כתובת שנייה: {student.SecondAddress}, {student.SecondCity}");
-                    resultBuilder.AppendLine($"אימייל: {student.Email}");
-                    resultBuilder.AppendLine($"טלפון: {student.Phone}");
-                    resultBuilder.AppendLine($"פרטי הורה 1: {student.Parent1Id} - {student.Parent1Name} - {student.Parent1Phone} - {student.Parent1Email}");
-                    resultBuilder.AppendLine($"פרטי הורה 2: {student.Parent2Id} - {student.Parent2Name} - {student.Parent2Phone} - {student.Parent2Email}");
-                    resultBuilder.AppendLine($"מגמה: {student.Major}");
-                    resultBuilder.AppendLine(new string('-', 40));
-
-                    // Update the searching message every 10 matches.
-                    if (countMatches % 10 == 0)
-                    {
-                        await botClient.EditMessageTextAsync(
-                            chatId: message.Chat.Id,
-                            messageId: searchingMsg.MessageId,
-                            text: $"מחפש, נמצאו בנתיים {countMatches} תוצאות...",
-                            cancellationToken: cancellationToken
-                        );
-                    }
-                }
+                await botClient.SendTextMessageAsync(chatId, "לא ניתן לבצע חיפוש ללא שם.", cancellationToken: ct);
             }
-
-            // Final update.
-            await botClient.EditMessageTextAsync(
-                chatId: message.Chat.Id,
-                messageId: searchingMsg.MessageId,
-                text: $"מחפש, נמצאו בנתיים {countMatches} תוצאות...",
-                cancellationToken: cancellationToken
-            );
-
-            // Delete the searching message.
-            await botClient.DeleteMessageAsync(message.Chat.Id, searchingMsg.MessageId, cancellationToken: cancellationToken);
-
-            // Prepare the final result.
-            string finalResult = resultBuilder.Length > 0 ? "תוצאות חיפוש:\n" + resultBuilder.ToString() : "לא נמצאו תוצאות.";
-
-            // If the message is too long, split it into chunks (max 4000 characters each).
-            const int maxChunkSize = 4000;
-            if (finalResult.Length > maxChunkSize)
+            else if (isTeacher && state.Option.EndsWith("_fullname") && string.IsNullOrEmpty(fn) && string.IsNullOrEmpty(ln) && string.IsNullOrEmpty(subjectInput))
             {
-                for (int i = 0; i < finalResult.Length; i += maxChunkSize)
-                {
-                    string chunk = finalResult.Substring(i, Math.Min(maxChunkSize, finalResult.Length - i));
-                    await botClient.SendTextMessageAsync(message.Chat.Id, chunk, cancellationToken: cancellationToken);
-                }
+                await botClient.SendTextMessageAsync(chatId, "לא ניתן לבצע חיפוש ללא קריטריון.", cancellationToken: ct);
             }
             else
             {
-                await botClient.SendTextMessageAsync(message.Chat.Id, finalResult, cancellationToken: cancellationToken);
+                if (isTeacher)
+                    await PerformTeacherSearch(message, fn, ln, subjectInput, ct);
+                else
+                    await PerformStudentSearch(message, fn, ln, idInput, ct);
             }
+
+            searchStates.Remove(chatId);
         }
 
-        static Task HandleErrorAsync(ITelegramBotClient bot, Exception exception, CancellationToken cancellationToken)
+        static async Task PerformStudentSearch(Message message, string fn, string ln, string idInput, CancellationToken ct)
         {
-            Console.WriteLine($"Error: {exception.Message}");
+            var results = new List<string>();
+            foreach (var s in cachedStudents)
+            {
+                bool match = !string.IsNullOrEmpty(idInput)
+                             ? s.Id.Contains(idInput)
+                             : ((string.IsNullOrEmpty(fn) || s.FirstName.Contains(fn, StringComparison.OrdinalIgnoreCase)) && (string.IsNullOrEmpty(ln) || s.LastName.Contains(ln, StringComparison.OrdinalIgnoreCase)));
+                if (!match) continue;
+                var sb = new StringBuilder();
+                sb.AppendLine("----------------------------------------");
+                sb.AppendLine($"תעודת זהות: {s.Id}");
+                sb.AppendLine($"שם משפחה: {s.LastName}");
+                sb.AppendLine($"שם פרטי: {s.FirstName}");
+                sb.AppendLine($"כיתה: {s.Grade} {s.ClassNum}");
+                sb.AppendLine($"מין: {s.Gender}");
+                sb.AppendLine($"תאריך לידה: {s.Dob}");
+                sb.AppendLine($"תאריך לידה עברי: {s.JewishDob}");
+                sb.AppendLine($"כתובת מלאה: {s.FullAddress}, {s.City}");
+                sb.AppendLine($"כתובת שנייה: {s.SecondAddress}, {s.SecondCity}");
+                sb.AppendLine($"אימייל: {s.Email}");
+                sb.AppendLine($"טלפון: {s.Phone}");
+                sb.AppendLine($"פרטי הורה 1: {s.Parent1Id} - {s.Parent1Name} - {s.Parent1Phone} - {s.Parent1Email}");
+                sb.AppendLine($"פרטי הורה 2: {s.Parent2Id} - {s.Parent2Name} - {s.Parent2Phone} - {s.Parent2Email}");
+                sb.AppendLine($"מגמה: {s.Major}");
+                results.Add(sb.ToString());
+            }
+            if (!results.Any())
+            {
+                await botClient.SendTextMessageAsync(message.Chat.Id, "לא נמצאו תוצאות.", cancellationToken: ct);
+                return;
+            }
+            var chunk = new StringBuilder();
+            foreach (var rec in results)
+            {
+                if (chunk.Length + rec.Length > 3500)
+                {
+                    await botClient.SendTextMessageAsync(message.Chat.Id, chunk.ToString(), cancellationToken: ct);
+                    chunk.Clear();
+                }
+                chunk.Append(rec);
+            }
+            if (chunk.Length > 0)
+                await botClient.SendTextMessageAsync(message.Chat.Id, chunk.ToString(), cancellationToken: ct);
+        }
+
+        static async Task PerformTeacherSearch(Message message, string fn, string ln, string subjectInput, CancellationToken ct)
+        {
+            var results = new List<string>();
+            foreach (var t in cachedTeachers)
+            {
+                bool match = ((string.IsNullOrEmpty(fn) || t.FirstName.Contains(fn, StringComparison.OrdinalIgnoreCase)) && (string.IsNullOrEmpty(ln) || t.LastName.Contains(ln, StringComparison.OrdinalIgnoreCase))) && (string.IsNullOrEmpty(subjectInput) || t.Subjects.Any(sub => sub.Contains(subjectInput, StringComparison.OrdinalIgnoreCase)));
+                if (!match) continue;
+                var sb = new StringBuilder();
+                sb.AppendLine("----------------------------------------");
+                sb.AppendLine($"תעודת זהות: {t.Id}");
+                sb.AppendLine($"שם משפחה: {t.LastName}");
+                sb.AppendLine($"שם פרטי: {t.FirstName}");
+                sb.AppendLine($"מס' טלפון 1: {t.Phone1}");
+                sb.AppendLine($"מס' טלפון 2: {t.Phone2}");
+                sb.AppendLine($"עיר: {t.City}");
+                sb.AppendLine($"כתובת: {t.FullAddress}");
+                sb.AppendLine($"מייל: {t.Email}");
+                sb.AppendLine($"מקצועות: {string.Join(", ", t.Subjects)}");
+                sb.AppendLine($"תפקיד: {t.Role}");
+                results.Add(sb.ToString());
+            }
+            if (!results.Any())
+            {
+                await botClient.SendTextMessageAsync(message.Chat.Id, "לא נמצאו תוצאות.", cancellationToken: ct);
+                return;
+            }
+            var chunk = new StringBuilder();
+            foreach (var rec in results)
+            {
+                if (chunk.Length + rec.Length > 3500)
+                {
+                    await botClient.SendTextMessageAsync(message.Chat.Id, chunk.ToString(), cancellationToken: ct);
+                    chunk.Clear();
+                }
+                chunk.Append(rec);
+            }
+            if (chunk.Length > 0)
+                await botClient.SendTextMessageAsync(message.Chat.Id, chunk.ToString(), cancellationToken: ct);
+        }
+
+        static Task HandleErrorAsync(ITelegramBotClient bot, Exception ex, CancellationToken cancellationToken)
+        {
+            if (ex is ApiRequestException api && api.Message.Contains("Conflict"))
+            {
+                Console.WriteLine("Conflict detected.");
+                return Task.CompletedTask;
+            }
+            Console.WriteLine(ex.Message);
             return Task.CompletedTask;
         }
     }

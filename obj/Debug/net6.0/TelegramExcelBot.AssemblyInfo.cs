@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TelegramExcelBot")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+64398a76ca43aa357a5645490a875b81f627eaf4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+22768b4fc3b4c2296e145a2cfe5fcf4129e4efc7")]
 [assembly: System.Reflection.AssemblyProductAttribute("TelegramExcelBot")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TelegramExcelBot")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

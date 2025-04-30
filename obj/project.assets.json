@@ -651,11 +651,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\ozsha\\source\\repos\\TelegramExcelBot\\TelegramExcelBot\\TelegramExcelBot.csproj",
+      "projectUniqueName": "C:\\Users\\ozsha\\Downloads\\BTBOT-main\\TelegramExcelBot.csproj",
       "projectName": "TelegramExcelBot",
-      "projectPath": "C:\\Users\\ozsha\\source\\repos\\TelegramExcelBot\\TelegramExcelBot\\TelegramExcelBot.csproj",
+      "projectPath": "C:\\Users\\ozsha\\Downloads\\BTBOT-main\\TelegramExcelBot.csproj",
       "packagesPath": "C:\\Users\\ozsha\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\ozsha\\source\\repos\\TelegramExcelBot\\TelegramExcelBot\\obj\\",
+      "outputPath": "C:\\Users\\ozsha\\Downloads\\BTBOT-main\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\ozsha\\AppData\\Roaming\\NuGet\\NuGet.Config",
