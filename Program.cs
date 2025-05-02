@@ -80,7 +80,7 @@ namespace TelegramExcelBot
             using var mutex = new Mutex(true, "TelegramExcelBotSingleton", out bool createdNew);
             if (!createdNew) return;
 
-            botClient = new TelegramBotClient("7954381826:AAEO7IDqHXd28qeklKXXSXIC-nKzc8G55nU");
+            botClient = new TelegramBotClient("YOUR_BOT_TOKEN_HERE");
             await botClient.DeleteWebhookAsync(true);
 
             Console.WriteLine("Loading Data...");
@@ -100,8 +100,10 @@ namespace TelegramExcelBot
         static async Task LoadStudentDataAsync()
         {
             string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-            string projectDir = Path.GetFullPath(Path.Combine(exeDir, "../../.."));
-            string path = Path.Combine(projectDir, "Data", "ALPON.xlsx");
+            string path = Path.Combine(exeDir, "Data", "ALPON.xlsx");
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Could not find student data file at {path}");
+
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             cachedStudents.Clear();
             using var stream = File.Open(path, FileMode.Open, FileAccess.Read);
@@ -143,8 +145,10 @@ namespace TelegramExcelBot
         static async Task LoadTeacherDataAsync()
         {
             string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-            string projectDir = Path.GetFullPath(Path.Combine(exeDir, "../../.."));
-            string path = Path.Combine(projectDir, "Data", "TEACHER.xlsx");
+            string path = Path.Combine(exeDir, "Data", "TEACHER.xlsx");
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Could not find teacher data file at {path}");
+
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             cachedTeachers.Clear();
             using var stream = File.Open(path, FileMode.Open, FileAccess.Read);
@@ -159,10 +163,12 @@ namespace TelegramExcelBot
                 var firstName = parts.LastOrDefault() ?? string.Empty;
                 var lastName = string.Join(" ", parts.Take(parts.Length - 1));
                 var rawSub = reader.GetValue(8)?.ToString() ?? string.Empty;
-                var subs = rawSub.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                                 .Select(s => s.Trim())
-                                 .Where(s => s.Length > 0)
-                                 .ToList();
+                var subs = rawSub
+                               .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                               .Select(s => s.Trim())
+                               .Where(s => s.Length > 0)
+                               .ToList();
+
                 cachedTeachers.Add(new Teacher
                 {
                     Id = reader.GetValue(1)?.ToString() ?? string.Empty,
@@ -188,6 +194,7 @@ namespace TelegramExcelBot
                 return;
             }
             if (update.Type != UpdateType.Message || update.Message.Text == null) return;
+
             var msg = update.Message;
             if (!authorizedUsers.Contains(msg.Chat.Id))
             {
@@ -202,6 +209,7 @@ namespace TelegramExcelBot
                 }
                 return;
             }
+
             if (msg.Text.StartsWith("/search", StringComparison.OrdinalIgnoreCase))
             {
                 var kb = new InlineKeyboardMarkup(new[]
@@ -211,16 +219,19 @@ namespace TelegramExcelBot
                 await botClient.SendTextMessageAsync(msg.Chat.Id, "בחר סוג חיפוש:", replyMarkup: kb, cancellationToken: ct);
                 return;
             }
+
             if (msg.Text.StartsWith("/start", StringComparison.OrdinalIgnoreCase))
             {
                 await botClient.SendTextMessageAsync(msg.Chat.Id, "/search", cancellationToken: ct);
                 return;
             }
+
             if (msg.Text.StartsWith("/help", StringComparison.OrdinalIgnoreCase))
             {
                 await botClient.SendTextMessageAsync(msg.Chat.Id, "/search - חיפוש\n/help - עזרה", cancellationToken: ct);
                 return;
             }
+
             if (searchStates.ContainsKey(msg.Chat.Id))
                 await ProcessSearchConversation(msg, ct);
         }
@@ -275,7 +286,6 @@ namespace TelegramExcelBot
             }
         }
 
-        // Conversation handler
         static async Task ProcessSearchConversation(Message message, CancellationToken ct)
         {
             var chatId = message.Chat.Id;
@@ -283,7 +293,6 @@ namespace TelegramExcelBot
             var text = message.Text.Trim();
             bool isTeacher = state.Option.StartsWith("teacher");
 
-            // First step for fullname search
             if (state.Option.EndsWith("_fullname") && state.Step == 1)
             {
                 state.FirstName = text.Equals("ללא", StringComparison.OrdinalIgnoreCase) ? string.Empty : text;
@@ -292,14 +301,12 @@ namespace TelegramExcelBot
                 return;
             }
 
-            // Gather inputs
             string input = text.Equals("ללא", StringComparison.OrdinalIgnoreCase) ? string.Empty : text;
             string fn = state.Option.EndsWith("_fullname") ? state.FirstName : string.Empty;
             string ln = (state.Option.EndsWith("_fullname") && state.Step == 2) ? input : string.Empty;
             string idInput = state.Option.EndsWith("_id") ? input : string.Empty;
             string subjectInput = state.Option == "teacher_search_subject" ? input : string.Empty;
 
-            // Sanitize Hebrew quotes for teacher searches
             if (isTeacher)
             {
                 fn = fn?.Replace('״', '"');
@@ -307,7 +314,6 @@ namespace TelegramExcelBot
                 subjectInput = subjectInput?.Replace('״', '"');
             }
 
-            // Prevent empty wildcard on fullname searches
             if (!isTeacher && state.Option.EndsWith("_fullname") && string.IsNullOrEmpty(fn) && string.IsNullOrEmpty(ln))
             {
                 await botClient.SendTextMessageAsync(chatId, "לא ניתן לבצע חיפוש ללא שם.", cancellationToken: ct);
@@ -337,6 +343,7 @@ namespace TelegramExcelBot
                              : ((string.IsNullOrEmpty(fn) || s.FirstName.Contains(fn, StringComparison.OrdinalIgnoreCase)) &&
                                 (string.IsNullOrEmpty(ln) || s.LastName.Contains(ln, StringComparison.OrdinalIgnoreCase)));
                 if (!match) continue;
+
                 var sb = new StringBuilder();
                 sb.AppendLine("----------------------------------------");
                 sb.AppendLine($"תעודת זהות: {s.Id}");
@@ -355,11 +362,13 @@ namespace TelegramExcelBot
                 sb.AppendLine($"מגמה: {s.Major}");
                 results.Add(sb.ToString());
             }
-            if (!results.Any())
+
+            if (results.Count == 0)
             {
                 await botClient.SendTextMessageAsync(message.Chat.Id, "לא נמצאו תוצאות.", cancellationToken: ct);
                 return;
             }
+
             var chunk = new StringBuilder();
             foreach (var rec in results)
             {
@@ -383,6 +392,7 @@ namespace TelegramExcelBot
                               (string.IsNullOrEmpty(ln) || t.LastName.Contains(ln, StringComparison.OrdinalIgnoreCase))) &&
                              (string.IsNullOrEmpty(subjectInput) || t.Subjects.Any(sub => sub.Contains(subjectInput, StringComparison.OrdinalIgnoreCase)));
                 if (!match) continue;
+
                 var sb = new StringBuilder();
                 sb.AppendLine("----------------------------------------");
                 sb.AppendLine($"תעודת זהות: {t.Id}");
@@ -397,11 +407,13 @@ namespace TelegramExcelBot
                 sb.AppendLine($"תפקיד: {t.Role}");
                 results.Add(sb.ToString());
             }
-            if (!results.Any())
+
+            if (results.Count == 0)
             {
                 await botClient.SendTextMessageAsync(message.Chat.Id, "לא נמצאו תוצאות.", cancellationToken: ct);
                 return;
             }
+
             var chunk = new StringBuilder();
             foreach (var rec in results)
             {
