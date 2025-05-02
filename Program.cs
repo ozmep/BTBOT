@@ -80,8 +80,14 @@ namespace TelegramExcelBot
             using var mutex = new Mutex(true, "TelegramExcelBotSingleton", out bool createdNew);
             if (!createdNew) return;
 
+            // Your existing token
             botClient = new TelegramBotClient("7954381826:AAEO7IDqHXd28qeklKXXSXIC-nKzc8G55nU");
-            await botClient.DeleteWebhookAsync(true);
+
+            // 1) Delete any existing webhook and drop pending updates
+            await botClient.DeleteWebhookAsync(dropPendingUpdates: true);
+
+            // 2) Force-clear the webhook URL so polling won’t conflict
+            await botClient.SetWebhookAsync(string.Empty);
 
             Console.WriteLine("Loading Data...");
             await LoadStudentDataAsync();
@@ -91,11 +97,14 @@ namespace TelegramExcelBot
 
             var receiverOptions = new ReceiverOptions { AllowedUpdates = Array.Empty<UpdateType>() };
             using var cts = new CancellationTokenSource();
+
+            // 3) Now start long-polling without “Conflict” errors
             botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions, cts.Token);
 
             Console.WriteLine("Bot is running");
             await Task.Delay(Timeout.Infinite);
         }
+
 
         static async Task LoadStudentDataAsync()
         {
