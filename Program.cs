@@ -80,7 +80,7 @@ namespace TelegramExcelBot
             using var mutex = new Mutex(true, "TelegramExcelBotSingleton", out bool createdNew);
             if (!createdNew) return;
 
-            botClient = new TelegramBotClient("YOUR_BOT_TOKEN_HERE");
+            botClient = new TelegramBotClient("7954381826:AAEO7IDqHXd28qeklKXXSXIC-nKzc8G55nU");
             await botClient.DeleteWebhookAsync(true);
 
             Console.WriteLine("Loading Data...");
