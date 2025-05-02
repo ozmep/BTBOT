@@ -229,20 +229,47 @@ namespace TelegramExcelBot
         {
             var chatId = cq.Message.Chat.Id;
             await botClient.AnswerCallbackQueryAsync(cq.Id, cancellationToken: ct);
+
             switch (cq.Data)
             {
+                case "go_back_main":
+                    var mainKb = new InlineKeyboardMarkup(new[]
+                    {
+                        new[] { InlineKeyboardButton.WithCallbackData("תלמיד", "role_student"), InlineKeyboardButton.WithCallbackData("מורה", "role_teacher") }
+                    });
+                    await botClient.EditMessageTextAsync(chatId, cq.Message.MessageId, "בחר סוג חיפוש:", replyMarkup: mainKb, cancellationToken: ct);
+                    break;
+
                 case "role_student":
-                    var skb = new InlineKeyboardMarkup(new[] { new[] { InlineKeyboardButton.WithCallbackData("תעודת זהות", "student_search_id"), InlineKeyboardButton.WithCallbackData("שם מלא", "student_search_fullname") } });
+                    var skb = new InlineKeyboardMarkup(new[]
+                    {
+                        new[] { InlineKeyboardButton.WithCallbackData("תעודת זהות", "student_search_id"), InlineKeyboardButton.WithCallbackData("שם מלא", "student_search_fullname") },
+                        new[] { InlineKeyboardButton.WithCallbackData("🔙 חזור", "go_back_main") }
+                    });
                     await botClient.EditMessageTextAsync(chatId, cq.Message.MessageId, "בחר חיפוש תלמיד:", replyMarkup: skb, cancellationToken: ct);
                     break;
+
                 case "role_teacher":
-                    var tkb = new InlineKeyboardMarkup(new[] { new[] { InlineKeyboardButton.WithCallbackData("תעודת זהות", "teacher_search_id"), InlineKeyboardButton.WithCallbackData("שם מלא", "teacher_search_fullname"), InlineKeyboardButton.WithCallbackData("מקצוע","teacher_search_subject") } });
+                    var tkb = new InlineKeyboardMarkup(new[]
+                    {
+                        new[] { InlineKeyboardButton.WithCallbackData("תעודת זהות", "teacher_search_id"), InlineKeyboardButton.WithCallbackData("שם מלא", "teacher_search_fullname"), InlineKeyboardButton.WithCallbackData("מקצוע", "teacher_search_subject") },
+                        new[] { InlineKeyboardButton.WithCallbackData("🔙 חזור", "go_back_main") }
+                    });
                     await botClient.EditMessageTextAsync(chatId, cq.Message.MessageId, "בחר חיפוש מורה:", replyMarkup: tkb, cancellationToken: ct);
                     break;
-                case "student_search_id": case "student_search_fullname": case "teacher_search_id": case "teacher_search_fullname": case "teacher_search_subject":
+
+                case "student_search_id":
+                case "student_search_fullname":
+                case "teacher_search_id":
+                case "teacher_search_fullname":
+                case "teacher_search_subject":
                     searchStates[chatId] = new SearchConversationState { Option = cq.Data, Step = 1, MenuMessageId = cq.Message.MessageId };
                     await botClient.DeleteMessageAsync(chatId, cq.Message.MessageId, cancellationToken: ct);
-                    string prompt = cq.Data.EndsWith("_id") ? "אנא הזן תעודת זהות:" : cq.Data.EndsWith("_fullname") ? "אנא הזן שם פרטי (או 'ללא'):" : "אנא הזן מקצוע (או 'ללא'):";
+                    string prompt = cq.Data.EndsWith("_id")
+                        ? "אנא הזן תעודת זהות:"
+                        : cq.Data.EndsWith("_fullname")
+                            ? "אנא הזן שם פרטי (או 'ללא'):"
+                            : "אנא הזן מקצוע (או 'ללא'):";
                     await botClient.SendTextMessageAsync(chatId, prompt, cancellationToken: ct);
                     break;
             }
@@ -256,7 +283,7 @@ namespace TelegramExcelBot
             var text = message.Text.Trim();
             bool isTeacher = state.Option.StartsWith("teacher");
 
-            // First name / last name flow
+            // First step for fullname search
             if (state.Option.EndsWith("_fullname") && state.Step == 1)
             {
                 state.FirstName = text.Equals("ללא", StringComparison.OrdinalIgnoreCase) ? string.Empty : text;
@@ -271,6 +298,14 @@ namespace TelegramExcelBot
             string ln = (state.Option.EndsWith("_fullname") && state.Step == 2) ? input : string.Empty;
             string idInput = state.Option.EndsWith("_id") ? input : string.Empty;
             string subjectInput = state.Option == "teacher_search_subject" ? input : string.Empty;
+
+            // Sanitize Hebrew quotes for teacher searches
+            if (isTeacher)
+            {
+                fn = fn?.Replace('״', '"');
+                ln = ln?.Replace('״', '"');
+                subjectInput = subjectInput?.Replace('״', '"');
+            }
 
             // Prevent empty wildcard on fullname searches
             if (!isTeacher && state.Option.EndsWith("_fullname") && string.IsNullOrEmpty(fn) && string.IsNullOrEmpty(ln))
@@ -299,7 +334,8 @@ namespace TelegramExcelBot
             {
                 bool match = !string.IsNullOrEmpty(idInput)
                              ? s.Id.Contains(idInput)
-                             : ((string.IsNullOrEmpty(fn) || s.FirstName.Contains(fn, StringComparison.OrdinalIgnoreCase)) && (string.IsNullOrEmpty(ln) || s.LastName.Contains(ln, StringComparison.OrdinalIgnoreCase)));
+                             : ((string.IsNullOrEmpty(fn) || s.FirstName.Contains(fn, StringComparison.OrdinalIgnoreCase)) &&
+                                (string.IsNullOrEmpty(ln) || s.LastName.Contains(ln, StringComparison.OrdinalIgnoreCase)));
                 if (!match) continue;
                 var sb = new StringBuilder();
                 sb.AppendLine("----------------------------------------");
@@ -343,7 +379,9 @@ namespace TelegramExcelBot
             var results = new List<string>();
             foreach (var t in cachedTeachers)
             {
-                bool match = ((string.IsNullOrEmpty(fn) || t.FirstName.Contains(fn, StringComparison.OrdinalIgnoreCase)) && (string.IsNullOrEmpty(ln) || t.LastName.Contains(ln, StringComparison.OrdinalIgnoreCase))) && (string.IsNullOrEmpty(subjectInput) || t.Subjects.Any(sub => sub.Contains(subjectInput, StringComparison.OrdinalIgnoreCase)));
+                bool match = ((string.IsNullOrEmpty(fn) || t.FirstName.Contains(fn, StringComparison.OrdinalIgnoreCase)) &&
+                              (string.IsNullOrEmpty(ln) || t.LastName.Contains(ln, StringComparison.OrdinalIgnoreCase))) &&
+                             (string.IsNullOrEmpty(subjectInput) || t.Subjects.Any(sub => sub.Contains(subjectInput, StringComparison.OrdinalIgnoreCase)));
                 if (!match) continue;
                 var sb = new StringBuilder();
                 sb.AppendLine("----------------------------------------");
