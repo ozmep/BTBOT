@@ -5,6 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
@@ -66,7 +69,7 @@ namespace TelegramExcelBot
         public int MenuMessageId { get; set; }
     }
 
-    class Program
+    public class Program
     {
         static TelegramBotClient botClient;
         static Dictionary<long, SearchConversationState> searchStates = new Dictionary<long, SearchConversationState>();
@@ -75,17 +78,29 @@ namespace TelegramExcelBot
         static HashSet<long> authorizedUsers = new HashSet<long>();
         const string securityKey = "YafaBish";
 
-        static async Task Main(string[] args)
+        public static async Task Main(string[] args)
+        {
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            // Start the Telegram bot in the background
+            _ = Task.Run(() => StartBotAsync());
+
+            // Minimal HTTP endpoint to bind a port for Render
+            app.MapGet("/", () => "Bot is running");
+
+            await app.RunAsync();
+        }
+
+        static async Task StartBotAsync()
         {
             using var mutex = new Mutex(true, "TelegramExcelBotSingleton", out bool createdNew);
             if (!createdNew) return;
 
-            // Your existing token
             botClient = new TelegramBotClient("7954381826:AAEO7IDqHXd28qeklKXXSXIC-nKzc8G55nU");
 
             // 1) Delete any existing webhook and drop pending updates
             await botClient.DeleteWebhookAsync(dropPendingUpdates: true);
-
             // 2) Force-clear the webhook URL so polling won’t conflict
             await botClient.SetWebhookAsync(string.Empty);
 
@@ -98,32 +113,11 @@ namespace TelegramExcelBot
             var receiverOptions = new ReceiverOptions { AllowedUpdates = Array.Empty<UpdateType>() };
             using var cts = new CancellationTokenSource();
 
-            // 3) Now start long-polling without “Conflict” errors
+            // 3) Now start long-polling without "Conflict" errors
             botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions, cts.Token);
 
             Console.WriteLine("Bot is running");
             await Task.Delay(Timeout.Infinite);
-        }
-
-        static async Task StartBot()
-        {
-            using var mutex = new Mutex(true, "TelegramExcelBotSingleton", out bool createdNew);
-            if (!createdNew) return;
-
-            botClient = new TelegramBotClient("YOUR_TOKEN");
-
-            await botClient.DeleteWebhookAsync(dropPendingUpdates: true);
-            await botClient.SetWebhookAsync(string.Empty);
-
-            Console.WriteLine("Loading Data...");
-            await LoadStudentDataAsync();
-            Console.WriteLine("Student Data Loaded, Awaiting Teacher Data...");
-            await LoadTeacherDataAsync();
-            Console.WriteLine("Teacher Data Loaded");
-
-            var receiverOptions = new ReceiverOptions { AllowedUpdates = Array.Empty<UpdateType>() };
-            using var cts = new CancellationTokenSource();
-            botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions, cts.Token);
         }
 
         static async Task LoadStudentDataAsync()
@@ -193,10 +187,10 @@ namespace TelegramExcelBot
                 var lastName = string.Join(" ", parts.Take(parts.Length - 1));
                 var rawSub = reader.GetValue(8)?.ToString() ?? string.Empty;
                 var subs = rawSub
-                               .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                               .Select(s => s.Trim())
-                               .Where(s => s.Length > 0)
-                               .ToList();
+                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => s.Length > 0)
+                    .ToList();
 
                 cachedTeachers.Add(new Teacher
                 {
@@ -279,7 +273,6 @@ namespace TelegramExcelBot
                     });
                     await botClient.EditMessageTextAsync(chatId, cq.Message.MessageId, "בחר סוג חיפוש:", replyMarkup: mainKb, cancellationToken: ct);
                     break;
-
                 case "role_student":
                     var skb = new InlineKeyboardMarkup(new[]
                     {
@@ -288,7 +281,6 @@ namespace TelegramExcelBot
                     });
                     await botClient.EditMessageTextAsync(chatId, cq.Message.MessageId, "בחר חיפוש תלמיד:", replyMarkup: skb, cancellationToken: ct);
                     break;
-
                 case "role_teacher":
                     var tkb = new InlineKeyboardMarkup(new[]
                     {
@@ -297,7 +289,6 @@ namespace TelegramExcelBot
                     });
                     await botClient.EditMessageTextAsync(chatId, cq.Message.MessageId, "בחר חיפוש מורה:", replyMarkup: tkb, cancellationToken: ct);
                     break;
-
                 case "student_search_id":
                 case "student_search_fullname":
                 case "teacher_search_id":
