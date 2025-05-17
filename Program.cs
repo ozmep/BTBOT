@@ -81,6 +81,11 @@ namespace TelegramExcelBot
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // Bind to Render port
+            var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+            builder.WebHost.UseUrls($"http://*:{port}");
+
             var app = builder.Build();
 
             // Start the Telegram bot in the background
