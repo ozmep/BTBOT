@@ -105,6 +105,26 @@ namespace TelegramExcelBot
             await Task.Delay(Timeout.Infinite);
         }
 
+        static async Task StartBot()
+        {
+            using var mutex = new Mutex(true, "TelegramExcelBotSingleton", out bool createdNew);
+            if (!createdNew) return;
+
+            botClient = new TelegramBotClient("YOUR_TOKEN");
+
+            await botClient.DeleteWebhookAsync(dropPendingUpdates: true);
+            await botClient.SetWebhookAsync(string.Empty);
+
+            Console.WriteLine("Loading Data...");
+            await LoadStudentDataAsync();
+            Console.WriteLine("Student Data Loaded, Awaiting Teacher Data...");
+            await LoadTeacherDataAsync();
+            Console.WriteLine("Teacher Data Loaded");
+
+            var receiverOptions = new ReceiverOptions { AllowedUpdates = Array.Empty<UpdateType>() };
+            using var cts = new CancellationTokenSource();
+            botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions, cts.Token);
+        }
 
         static async Task LoadStudentDataAsync()
         {
