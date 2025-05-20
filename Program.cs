@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -93,7 +94,7 @@ namespace TelegramExcelBot
 
             // Minimal HTTP endpoint to bind a port for Render
             app.MapGet("/", () => "Bot is running");
-
+            app.MapGet("/healthz", () => Results.Ok("healthy"));
             await app.RunAsync();
         }
 
