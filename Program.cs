@@ -90,7 +90,41 @@ namespace TelegramExcelBot
             var app = builder.Build();
 
             // Start the Telegram bot in the background
-            _ = Task.Run(() => StartBotAsync());
+           // Start the Telegram bot in the background with error handling
+_ = Task.Run(async () =>
+{
+    try
+    {
+        Console.WriteLine("Starting Telegram bot...");
+        await StartBotAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("BOT CRASHED: " + ex);
+    }
+});
+
+// Optional: Self-ping to keep the app warm
+_ = Task.Run(async () =>
+{
+    while (true)
+    {
+        try
+        {
+            using var client = new HttpClient();
+            var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+            var result = await client.GetAsync($"http://localhost:{port}/healthz");
+            Console.WriteLine("Self-ping: " + result.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Self-ping failed: " + ex.Message);
+        }
+
+        await Task.Delay(TimeSpan.FromMinutes(5));
+    }
+});
+
 
             // Minimal HTTP endpoint to bind a port for Render
             app.MapGet("/", () => "Bot is running");
