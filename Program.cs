@@ -93,14 +93,21 @@ namespace TelegramExcelBot
            // Start the Telegram bot in the background with error handling
 _ = Task.Run(async () =>
 {
-    try
+    while (true)
     {
-        Console.WriteLine("Starting Telegram bot...");
-        await StartBotAsync();
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine("BOT CRASHED: " + ex);
+        try
+        {
+            Console.WriteLine("Starting bot loop...");
+            await StartBotAsync();
+            Console.WriteLine("Bot exited unexpectedly — restarting...");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("BOT CRASHED: " + ex);
+        }
+
+        // Wait a bit before restarting to avoid rapid failure loops
+        await Task.Delay(TimeSpan.FromSeconds(10));
     }
 });
 
